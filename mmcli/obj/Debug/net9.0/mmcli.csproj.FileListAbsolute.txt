@@ -1,0 +1,14 @@
+C:\Users\Jar\Dropbox\jsnew\MonitorMonitor\mmcli\bin\Debug\net9.0\mmcli.exe
+C:\Users\Jar\Dropbox\jsnew\MonitorMonitor\mmcli\bin\Debug\net9.0\mmcli.deps.json
+C:\Users\Jar\Dropbox\jsnew\MonitorMonitor\mmcli\bin\Debug\net9.0\mmcli.runtimeconfig.json
+C:\Users\Jar\Dropbox\jsnew\MonitorMonitor\mmcli\bin\Debug\net9.0\mmcli.dll
+C:\Users\Jar\Dropbox\jsnew\MonitorMonitor\mmcli\bin\Debug\net9.0\mmcli.pdb
+C:\Users\Jar\Dropbox\jsnew\MonitorMonitor\mmcli\obj\Debug\net9.0\mmcli.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Jar\Dropbox\jsnew\MonitorMonitor\mmcli\obj\Debug\net9.0\mmcli.AssemblyInfoInputs.cache
+C:\Users\Jar\Dropbox\jsnew\MonitorMonitor\mmcli\obj\Debug\net9.0\mmcli.AssemblyInfo.cs
+C:\Users\Jar\Dropbox\jsnew\MonitorMonitor\mmcli\obj\Debug\net9.0\mmcli.csproj.CoreCompileInputs.cache
+C:\Users\Jar\Dropbox\jsnew\MonitorMonitor\mmcli\obj\Debug\net9.0\mmcli.dll
+C:\Users\Jar\Dropbox\jsnew\MonitorMonitor\mmcli\obj\Debug\net9.0\refint\mmcli.dll
+C:\Users\Jar\Dropbox\jsnew\MonitorMonitor\mmcli\obj\Debug\net9.0\mmcli.pdb
+C:\Users\Jar\Dropbox\jsnew\MonitorMonitor\mmcli\obj\Debug\net9.0\mmcli.genruntimeconfig.cache
+C:\Users\Jar\Dropbox\jsnew\MonitorMonitor\mmcli\obj\Debug\net9.0\ref\mmcli.dll

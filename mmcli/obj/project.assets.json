@@ -13,11 +13,11 @@
   "project": {
     "version": "0.7.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Jar\\Dropbox\\jsnew\\MonitorMonitor\\mmcli\\mmcli.csproj",
+      "projectUniqueName": "C:\\Users\\Jar\\Dropbox\\pipefl\\_github\\MonitorMonitor\\mmcli\\mmcli.csproj",
       "projectName": "mmcli",
-      "projectPath": "C:\\Users\\Jar\\Dropbox\\jsnew\\MonitorMonitor\\mmcli\\mmcli.csproj",
+      "projectPath": "C:\\Users\\Jar\\Dropbox\\pipefl\\_github\\MonitorMonitor\\mmcli\\mmcli.csproj",
       "packagesPath": "C:\\Users\\Jar\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Jar\\Dropbox\\jsnew\\MonitorMonitor\\mmcli\\obj\\",
+      "outputPath": "C:\\Users\\Jar\\Dropbox\\pipefl\\_github\\MonitorMonitor\\mmcli\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\Jar\\AppData\\Roaming\\NuGet\\NuGet.Config"

@@ -2,14 +2,20 @@
 
 A Windows command-line utility for saving and loading multi-monitor display configurations.
 
-## Features
+## The problem. 
+Windows has limited capabilities for quick monitor profile switching, especially if you have more than 2 displays. 
 
-- Save current monitor configuration to named profiles
-- Load and apply saved monitor configurations
-- List all saved profiles
-- Show current monitor setup details
-- Delete saved profiles
-- Profiles stored as JSON files
+On a system with more than 2 displays, pressing Win-P still only produces a UI for switching between 2. 
+
+<img width="377" height="323" alt="image" src="https://github.com/user-attachments/assets/50d81ba9-ef30-41f7-ba8b-33ce7301d48c" />
+
+This is a problem if you have say, 3 displays and want to quickly swap between different display profiles. 
+
+<img width="1014" height="319" alt="Screenshot 2026-01-12 191349" src="https://github.com/user-attachments/assets/7a3a23cd-2dfb-4867-9dcf-9444fb8dbc62" />
+
+In this example, I have display 1, which is my primary 3440x1440 desktop display, a smaller "mini" 2560x720 display (3) for stats, youtube, etc. 
+
+Display 2 is my wall-mounted 4k LG C3 which I switch to for couch-gaming. Using windows, I am unable to quickly swap between "displays 1 and 3" and "display 2". mmcli aims to correct this. 
 
 ## Requirements
 
@@ -18,29 +24,30 @@ A Windows command-line utility for saving and loading multi-monitor display conf
 
 ## Installation
 
-1. Build the project:
-   ```
-   dotnet build -c Release
-   ```
+Build the project:
+```
+dotnet build -c Release
+```
+(The executable will be located at: `bin\Release\net9.0\mmcli.exe`)
 
-2. The executable will be located at: `bin\Release\net9.0\mmcli.exe`
+### or
 
-3. (Optional) Add the executable location to your PATH for system-wide access
+Download the pre-compiled binary in the releases, and place it in a PATH locale. 
 
 ## Usage
 
 ### Save Current Configuration
-Save your current monitor setup with a custom profile name:
-```
-mmcli -save <profile_name>
-```
 
-Example:
-```
-mmcli -save 1and3
-mmcli -save just2
-mmcli -save work-setup
-```
+1. Set up your monitors however you prefer using the default windows display manager.
+2. Open up a command prompt window and save the current profile with:
+   ```
+   mmcli -save Profile1
+   ```
+3. Reconfigure your displays for another profile using the windows display manager.
+4. Save that to it's own profile.
+   ```
+   mmcli -save Profile2
+   ```
 
 ### Load Configuration
 Apply a previously saved monitor configuration:
@@ -50,10 +57,8 @@ mmcli -load <profile_name>
 
 Example:
 ```
-mmcli -load 1and3
+mmcli -load Profile1
 ```
-
-**Note:** Some display changes may require logging out and back in to take full effect.
 
 ### List Saved Profiles
 View all available profiles:
@@ -120,17 +125,6 @@ Each profile stores:
 - Bits per pixel
 - Primary monitor designation
 - Display orientation
-
-## Troubleshooting
-
-**Configuration not applying correctly:**
-- Try running as Administrator
-- Log out and log back in after applying changes
-- Verify the profile was saved correctly with `mmcli -show`
-
-**No monitors detected:**
-- Ensure monitors are physically connected and powered on
-- Check Windows Display Settings to verify monitors are recognized
 
 ## License
 

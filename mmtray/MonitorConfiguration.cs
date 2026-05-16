@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace mmcli;
+namespace mmtray;
 
 public class MonitorConfiguration
 {
@@ -92,8 +92,7 @@ public class MonitorConfiguration
     public const int DISP_CHANGE_SUCCESSFUL = 0;
     public const int DISP_CHANGE_RESTART = 1;
     public const int DISP_CHANGE_FAILED = -1;
-    
-    // DEVMODE field flags
+
     public const int DM_PELSWIDTH = 0x80000;
     public const int DM_PELSHEIGHT = 0x100000;
     public const int DM_POSITION = 0x20;
@@ -118,14 +117,14 @@ public class MonitorConfiguration
         var monitors = new List<MonitorInfo>();
         DISPLAY_DEVICE d = new DISPLAY_DEVICE();
         d.cb = Marshal.SizeOf(d);
-        
+
         for (uint id = 0; EnumDisplayDevices(null, id, ref d, 0); id++)
         {
             if ((d.StateFlags & DisplayDeviceStateFlags.AttachedToDesktop) != 0)
             {
                 DEVMODE dm = new DEVMODE();
                 dm.dmSize = (short)Marshal.SizeOf<DEVMODE>();
-                
+
                 if (EnumDisplaySettings(d.DeviceName, ENUM_CURRENT_SETTINGS, ref dm))
                 {
                     var monitor = new MonitorInfo
@@ -145,22 +144,21 @@ public class MonitorConfiguration
                     monitors.Add(monitor);
                 }
             }
-            
+
             d.cb = Marshal.SizeOf(d);
         }
-        
+
         return monitors;
     }
 
     public static bool ApplyConfiguration(List<MonitorInfo> monitors)
     {
         bool success = true;
-        
-        // Get all currently attached displays
+
         DISPLAY_DEVICE d = new DISPLAY_DEVICE();
         d.cb = Marshal.SizeOf(d);
         List<string> attachedDevices = new List<string>();
-        
+
         for (uint id = 0; EnumDisplayDevices(null, id, ref d, 0); id++)
         {
             if ((d.StateFlags & DisplayDeviceStateFlags.AttachedToDesktop) != 0)
@@ -170,16 +168,12 @@ public class MonitorConfiguration
             d.cb = Marshal.SizeOf(d);
         }
 
-        // First, disable monitors not in the profile
         foreach (var deviceName in attachedDevices)
         {
             bool inProfile = monitors.Any(m => m.DeviceName == deviceName && m.IsAttached);
-            
+
             if (!inProfile)
             {
-                Console.WriteLine($"Disabling {deviceName}...");
-                
-                // Create DEVMODE with zero resolution to detach the display
                 DEVMODE dmDisable = new DEVMODE();
                 dmDisable.dmSize = (short)Marshal.SizeOf<DEVMODE>();
                 dmDisable.dmPelsWidth = 0;
@@ -187,17 +181,16 @@ public class MonitorConfiguration
                 dmDisable.dmPositionX = 0;
                 dmDisable.dmPositionY = 0;
                 dmDisable.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
-                
+
                 int result = ChangeDisplaySettingsEx(deviceName, ref dmDisable, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero);
-                
+
                 if (result != DISP_CHANGE_SUCCESSFUL)
                 {
-                    Console.WriteLine($"Warning: Failed to disable {deviceName} (Error code: {result})");
+                    success = false;
                 }
             }
         }
-        
-        // Then, configure monitors that should be enabled
+
         foreach (var monitor in monitors)
         {
             if (monitor.IsAttached)
@@ -212,23 +205,20 @@ public class MonitorConfiguration
                 dm.dmPositionX = monitor.PositionX;
                 dm.dmPositionY = monitor.PositionY;
                 dm.dmDisplayOrientation = monitor.Orientation;
-                dm.dmFields = 0x1C0000 | 0x20 | 0x80000 | 0x100000 | 0x40000; // Position, PelsWidth, PelsHeight, BitsPerPel, DisplayFrequency
+                dm.dmFields = 0x1C0000 | 0x20 | 0x80000 | 0x100000 | 0x40000;
 
                 int result = ChangeDisplaySettingsEx(monitor.DeviceName, ref dm, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero);
-                
+
                 if (result != DISP_CHANGE_SUCCESSFUL)
                 {
-                    Console.WriteLine($"Warning: Failed to prepare settings for {monitor.DeviceName} (Error code: {result})");
                     success = false;
                 }
             }
         }
 
-        // Apply all changes at once
         int finalResult = ChangeDisplaySettingsEx(null, IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero);
         if (finalResult != DISP_CHANGE_SUCCESSFUL)
         {
-            Console.WriteLine($"Warning: Final apply returned code: {finalResult}");
             success = false;
         }
 

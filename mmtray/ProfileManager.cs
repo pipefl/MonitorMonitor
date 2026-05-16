@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace mmcli;
+namespace mmtray;
 
 public class ProfileManager
 {
@@ -10,40 +10,43 @@ public class ProfileManager
     {
         var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         _profileDirectory = Path.Combine(appDataPath, "mmcli", "profiles");
-        
+
         if (!Directory.Exists(_profileDirectory))
         {
             Directory.CreateDirectory(_profileDirectory);
         }
     }
 
-    public void SaveProfile(string profileName, List<MonitorConfiguration.MonitorInfo> monitors)
+    public bool ProfileExists(string profileName)
+        => File.Exists(GetProfilePath(profileName));
+
+    public string SaveProfile(string profileName, List<MonitorConfiguration.MonitorInfo> monitors)
     {
         var filePath = GetProfilePath(profileName);
         var json = JsonSerializer.Serialize(monitors, ProfileJsonContext.Default.MonitorList);
         File.WriteAllText(filePath, json);
-        Console.WriteLine($"Profile '{profileName}' saved successfully to: {filePath}");
+        return filePath;
     }
 
-    public List<MonitorConfiguration.MonitorInfo>? LoadProfile(string profileName)
+    public List<MonitorConfiguration.MonitorInfo>? LoadProfile(string profileName, out string? error)
     {
+        error = null;
         var filePath = GetProfilePath(profileName);
 
         if (!File.Exists(filePath))
         {
-            Console.WriteLine($"Error: Profile '{profileName}' not found.");
+            error = $"Profile '{profileName}' not found.";
             return null;
         }
 
         try
         {
             var json = File.ReadAllText(filePath);
-            var monitors = JsonSerializer.Deserialize(json, ProfileJsonContext.Default.MonitorList);
-            return monitors;
+            return JsonSerializer.Deserialize(json, ProfileJsonContext.Default.MonitorList);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading profile: {ex.Message}");
+            error = ex.Message;
             return null;
         }
     }
@@ -55,34 +58,32 @@ public class ProfileManager
             return new List<string>();
         }
 
-        var profiles = Directory.GetFiles(_profileDirectory, "*.json")
+        return Directory.GetFiles(_profileDirectory, "*.json")
             .Select(Path.GetFileNameWithoutExtension)
             .Where(name => name != null)
             .Cast<string>()
             .ToList();
-
-        return profiles;
     }
 
-    public bool DeleteProfile(string profileName)
+    public bool DeleteProfile(string profileName, out string? error)
     {
+        error = null;
         var filePath = GetProfilePath(profileName);
-        
+
         if (!File.Exists(filePath))
         {
-            Console.WriteLine($"Error: Profile '{profileName}' not found.");
+            error = $"Profile '{profileName}' not found.";
             return false;
         }
 
         try
         {
             File.Delete(filePath);
-            Console.WriteLine($"Profile '{profileName}' deleted successfully.");
             return true;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error deleting profile: {ex.Message}");
+            error = ex.Message;
             return false;
         }
     }

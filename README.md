@@ -1,137 +1,61 @@
-# mmcli - Multi-Monitor Configuration CLI
+# Multi-Monitor Profiles — *Set it once. Recall it forever.*
 
-A Windows command-line utility for saving and loading multi-monitor display configurations.
+Your monitors never sit still. One minute you're commanding a triple-monitor cockpit at your desk. The next, you've kicked back on the couch and you just want the TV running solo, full resolution, nothing else competing for attention.
 
-## Features
+Windows lets you *change* your display setup. It just doesn't let you **remember** it.
 
-- Save current monitor configuration to named profiles
-- Load and apply saved monitor configurations
-- List all saved profiles
-- Show current monitor setup details
-- Delete saved profiles
-- Profiles stored as JSON files
+That's the gap this fills.
 
-## Requirements
+**Multi-Monitor Profiles** lets you capture the exact state of your displays—alignment, resolution, refresh rate, primary designation, the works—and bring it back instantly, on demand, by name. No re-dragging windows. No fiddling with the display panel. No "wait, which one was 144Hz again?"
 
-- Windows OS
-- .NET 9.0 Runtime
+## How it works
 
-## Installation
+You start where you always have: the Windows display manager. Arrange your monitors, dial in the resolutions and refresh rates, and get everything looking exactly the way you want it.
 
-1. Build the project:
-   ```
-   dotnet build -c Release
-   ```
+Then you snapshot it.
 
-2. The executable will be located at: `bin\Release\net9.0\mmcli.exe`
+Click the system tray icon and hit **Save**, or drop into the console and use `mmcli`:
 
-3. (Optional) Add the executable location to your PATH for system-wide access
-
-## Usage
-
-### Save Current Configuration
-Save your current monitor setup with a custom profile name:
 ```
-mmcli -save <profile_name>
+mmcli -save "Desktop Configuration"
 ```
 
-Example:
-```
-mmcli -save 1and3
-mmcli -save just2
-mmcli -save work-setup
-```
+That's it. Your layout is now a named profile, frozen in time and ready whenever you want it.
 
-### Load Configuration
-Apply a previously saved monitor configuration:
+Later—maybe hours later, maybe after three reboots and a GPU driver update—you **recall** it. Click the tray icon and pick your profile, or run:
+
 ```
-mmcli -load <profile_name>
+mmcli -load "Desktop Configuration"
 ```
 
-Example:
-```
-mmcli -load 1and3
-```
+Every display snaps back into place. Same arrangement, same resolutions, same refresh rates. Like it never moved.
 
-**Note:** Some display changes may require logging out and back in to take full effect.
+## Two ways to drive it
 
-### List Saved Profiles
-View all available profiles:
-```
-mmcli -list
-```
+Some people want a quick click. Some people want a keyboard and a command line. Multi-Monitor Profiles serves both without compromise.
 
-### Show Current Configuration
-Display detailed information about your current monitor setup:
-```
-mmcli -show
-```
+The **system tray icon** keeps your profiles one click away—ideal for the couch-to-desk-to-couch shuffle.
 
-### Delete Profile
-Remove a saved profile:
+The **`mmcli` command-line tool** gives you full control and scriptability. Wire it into batch files, hook it to a launcher, trigger it from a stream deck, or chain it into your "start work" routine. Anything that can run a command can switch your monitors.
+
 ```
-mmcli -delete <profile_name>
+Usage:
+  mmcli -save <profile_name>    Save current monitor configuration
+  mmcli -load <profile_name>    Load and apply saved configuration
+  mmcli -list                   List all saved profiles
+  mmcli -delete <profile_name>  Delete a saved profile
+  mmcli -show                   Show current monitor configuration
+  mmcli -help                   Show this help message
 ```
 
-### Help
-Display usage information:
-```
-mmcli -help
-```
+## Built for the way you actually use your setup
 
-## Profile Storage
+- **Desktop mode** — Triple monitors, productivity layout, everything where your muscle memory expects it.
+- **Couch mode** — TV solo, big and clean, the rest powered down and out of the way.
+- **Game mode, present mode, whatever-mode** — If you can arrange it, you can save it. Name it. Recall it.
 
-Profiles are stored as JSON files in:
-```
-%LocalAppData%\mmcli\profiles\
-```
+Switch contexts in a second, not a sigh.
 
-Typically: `C:\Users\<YourUsername>\AppData\Local\mmcli\profiles\`
+---
 
-## Example Workflow
-
-```powershell
-# Set up monitors 1 and 3, then save
-mmcli -save 1and3
-
-# Set up only monitor 2, then save  
-mmcli -save just2
-
-# Later, switch between configurations
-mmcli -load 1and3
-mmcli -load just2
-
-# Check what profiles you have
-mmcli -list
-```
-
-## Technical Details
-
-The tool uses Windows Display APIs:
-- `EnumDisplayDevices` - Enumerate display devices
-- `EnumDisplaySettings` - Get current display settings
-- `ChangeDisplaySettingsEx` - Apply display configuration changes
-
-Each profile stores:
-- Monitor device names and friendly names
-- Resolution (width x height)
-- Position (X, Y coordinates)
-- Refresh rate
-- Bits per pixel
-- Primary monitor designation
-- Display orientation
-
-## Troubleshooting
-
-**Configuration not applying correctly:**
-- Try running as Administrator
-- Log out and log back in after applying changes
-- Verify the profile was saved correctly with `mmcli -show`
-
-**No monitors detected:**
-- Ensure monitors are physically connected and powered on
-- Check Windows Display Settings to verify monitors are recognized
-
-## License
-
-This project is provided as-is for personal use.
+**Multi-Monitor Profiles.** Your displays, exactly how you left them—because you told them to stay that way.

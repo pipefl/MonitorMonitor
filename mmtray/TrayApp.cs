@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
@@ -8,6 +9,11 @@ namespace mmtray;
 
 internal sealed class TrayApp : ApplicationContext
 {
+    private static string Version =>
+        Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+        ?? "dev";
+
     private readonly NotifyIcon _notifyIcon;
     private readonly ProfileManager _profiles = new();
     private readonly Icon _icon;
@@ -106,6 +112,10 @@ internal sealed class TrayApp : ApplicationContext
         showItem.Click += (_, _) => OnShowCurrent();
         menu.Items.Add(showItem);
 
+        var aboutItem = new ToolStripMenuItem("About");
+        aboutItem.Click += (_, _) => OnAbout();
+        menu.Items.Add(aboutItem);
+
         menu.Items.Add(new ToolStripSeparator());
 
         var exitItem = new ToolStripMenuItem("Exit");
@@ -142,14 +152,35 @@ internal sealed class TrayApp : ApplicationContext
             return;
         }
 
-        bool ok = MonitorConfiguration.ApplyConfiguration(monitors);
-        if (ok)
+        var result = MonitorConfiguration.ApplyConfiguration(monitors);
+
+        if (result.LegacyProfile)
+        {
+            MessageBox.Show(
+                $"Profile '{name}' was saved before EDID identity tracking and cannot be loaded reliably.\n\nPlease re-save the profile with the current monitor setup.",
+                "Legacy profile",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (result.Success)
         {
             Notify("Profile loaded", $"Applied '{name}'.");
+            return;
+        }
+
+        if (result.MissingMonitors.Count > 0)
+        {
+            var list = string.Join("\n  - ", result.MissingMonitors);
+            Notify("Load completed with warnings",
+                $"These monitors aren't currently connected:\n  - {list}",
+                ToolTipIcon.Warning);
         }
         else
         {
-            Notify("Load completed with warnings", $"Some settings in '{name}' may not have been applied.", ToolTipIcon.Warning);
+            Notify("Load completed with warnings",
+                $"Some settings in '{name}' may not have been applied.",
+                ToolTipIcon.Warning);
         }
     }
 
@@ -196,6 +227,20 @@ internal sealed class TrayApp : ApplicationContext
             return;
         }
 
+        var missingIdentity = MonitorConfiguration.ValidateForSave(monitors);
+        if (missingIdentity.Count > 0)
+        {
+            var lines = string.Join("\n  - ",
+                missingIdentity.Select(m => $"{(string.IsNullOrEmpty(m.DeviceString) ? m.DeviceName : m.DeviceString)} ({m.Width}x{m.Height})"));
+            MessageBox.Show(
+                $"Cannot save '{name}' — these monitors have no stable identity (EDID unavailable):\n\n  - {lines}\n\n" +
+                "Re-applying this profile later wouldn't reliably re-target them. " +
+                "This usually means a virtual / remote display or a monitor whose driver doesn't expose EDID.",
+                "Save aborted",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
         try
         {
             _profiles.SaveProfile(name, monitors);
@@ -232,6 +277,15 @@ internal sealed class TrayApp : ApplicationContext
         var monitors = MonitorConfiguration.GetCurrentConfiguration();
         using var dialog = new CurrentSetupDialog(monitors);
         dialog.ShowDialog();
+    }
+
+    private void OnAbout()
+    {
+        MessageBox.Show(
+            $"MonitorMonitor\nVersion {Version}",
+            "About MonitorMonitor",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
     }
 
     private void ExitApp()

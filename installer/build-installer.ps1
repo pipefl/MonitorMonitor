@@ -23,6 +23,12 @@ $distDir      = Join-Path $installerDir 'dist'
 $mmcliProj = Join-Path $repoRoot 'mmcli\mmcli.csproj'
 $mmtrayProj = Join-Path $repoRoot 'mmtray\mmtray.csproj'
 
+# --- Version: single datestamp used everywhere user-visible ----------------
+$now            = Get-Date
+$displayVersion = $now.ToString('yyyyMMdd-HHmmss')
+$numericVersion = '{0}.{1}{2:D2}.{3:D2}{4:D2}.{5:D2}' -f $now.Year, $now.Month, $now.Day, $now.Hour, $now.Minute, $now.Second
+Write-Host "==> Build version: $displayVersion  (numeric: $numericVersion)" -ForegroundColor Cyan
+
 # --- MSVC environment for AOT linking ---------------------------------------
 $vc     = 'C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.50.35717'
 $sdkVer = '10.0.26100.0'
@@ -47,12 +53,19 @@ if ($running) {
 }
 
 # --- Publish both binaries --------------------------------------------------
+$versionArgs = @(
+    "-p:AssemblyVersion=$numericVersion",
+    "-p:FileVersion=$numericVersion",
+    "-p:InformationalVersion=$displayVersion",
+    '-p:IlcUseEnvironmentalTools=true'
+)
+
 Write-Host '==> Publishing mmcli (Native AOT)' -ForegroundColor Cyan
-dotnet publish $mmcliProj -c $Configuration -p:IlcUseEnvironmentalTools=true
+dotnet publish $mmcliProj -c $Configuration @versionArgs
 if ($LASTEXITCODE -ne 0) { throw 'mmcli publish failed' }
 
 Write-Host '==> Publishing mmtray (Native AOT)' -ForegroundColor Cyan
-dotnet publish $mmtrayProj -c $Configuration -p:IlcUseEnvironmentalTools=true
+dotnet publish $mmtrayProj -c $Configuration @versionArgs
 if ($LASTEXITCODE -ne 0) { throw 'mmtray publish failed' }
 
 # --- Stage ------------------------------------------------------------------
@@ -81,7 +94,7 @@ if (-not $iscc) { throw 'ISCC.exe not found. Install Inno Setup 6 first (winget 
 
 # --- Compile installer ------------------------------------------------------
 Write-Host '==> Compiling installer with ISCC' -ForegroundColor Cyan
-& $iscc /Q (Join-Path $installerDir 'MonitorMonitor.iss')
+& $iscc /Q "/DMyAppVersion=$displayVersion" "/DMyAppVersionNumeric=$numericVersion" (Join-Path $installerDir 'MonitorMonitor.iss')
 if ($LASTEXITCODE -ne 0) { throw 'ISCC compile failed' }
 
 Write-Host ''

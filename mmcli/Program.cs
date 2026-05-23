@@ -1,7 +1,14 @@
+using System.Reflection;
+
 namespace mmcli;
 
 class Program
 {
+    static string Version =>
+        Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+        ?? "dev";
+
     static int Main(string[] args)
     {
         if (args.Length == 0)
@@ -16,6 +23,12 @@ class Program
         {
             switch (args[0].ToLower())
             {
+                case "-version":
+                case "--version":
+                case "-v":
+                    Console.WriteLine($"mmcli {Version}");
+                    return 0;
+
                 case "-save":
                 case "--save":
                     if (args.Length < 2)
@@ -79,7 +92,7 @@ class Program
 
     static void ShowHelp()
     {
-        Console.WriteLine("Multi-Monitor Configuration CLI (mmcli)");
+        Console.WriteLine($"Multi-Monitor Configuration CLI (mmcli) {Version}");
         Console.WriteLine();
         Console.WriteLine("Usage:");
         Console.WriteLine("  mmcli -save <profile_name>    Save current monitor configuration");
@@ -87,6 +100,7 @@ class Program
         Console.WriteLine("  mmcli -list                   List all saved profiles");
         Console.WriteLine("  mmcli -delete <profile_name>  Delete a saved profile");
         Console.WriteLine("  mmcli -show                   Show current monitor configuration");
+        Console.WriteLine("  mmcli -version                Show version");
         Console.WriteLine("  mmcli -help                   Show this help message");
         Console.WriteLine();
         Console.WriteLine("Examples:");
@@ -101,17 +115,30 @@ class Program
     {
         Console.WriteLine("Reading current monitor configuration...");
         var monitors = MonitorConfiguration.GetCurrentConfiguration();
-        
+
         if (monitors.Count == 0)
         {
             Console.WriteLine("Warning: No active monitors detected.");
             return;
         }
 
+        var missingIdentity = MonitorConfiguration.ValidateForSave(monitors);
+        if (missingIdentity.Count > 0)
+        {
+            Console.WriteLine("Error: Cannot save profile - the following monitor(s) lack stable identity (EDID) information:");
+            foreach (var m in missingIdentity)
+            {
+                Console.WriteLine($"  - {m.DeviceString} on {m.DeviceName} ({m.Width}x{m.Height})");
+            }
+            Console.WriteLine("These displays cannot be reliably re-targeted on load. Aborting save.");
+            return;
+        }
+
         Console.WriteLine($"Found {monitors.Count} active monitor(s):");
         foreach (var monitor in monitors)
         {
-            Console.WriteLine($"  - {monitor.DeviceString} ({monitor.Width}x{monitor.Height} @ {monitor.PositionX},{monitor.PositionY}){(monitor.IsPrimary ? " [PRIMARY]" : "")}");
+            var label = !string.IsNullOrEmpty(monitor.MonitorFriendlyName) ? monitor.MonitorFriendlyName : monitor.DeviceString;
+            Console.WriteLine($"  - {label} ({monitor.Width}x{monitor.Height} @ {monitor.PositionX},{monitor.PositionY}){(monitor.IsPrimary ? " [PRIMARY]" : "")}");
         }
 
         profileManager.SaveProfile(profileName, monitors);
@@ -130,7 +157,8 @@ class Program
         Console.WriteLine($"Profile contains {monitors.Count} monitor(s):");
         foreach (var monitor in monitors)
         {
-            Console.WriteLine($"  - {monitor.DeviceString} ({monitor.Width}x{monitor.Height} @ {monitor.PositionX},{monitor.PositionY}){(monitor.IsPrimary ? " [PRIMARY]" : "")}");
+            var label = !string.IsNullOrEmpty(monitor.MonitorFriendlyName) ? monitor.MonitorFriendlyName : monitor.DeviceString;
+            Console.WriteLine($"  - {label} ({monitor.Width}x{monitor.Height} @ {monitor.PositionX},{monitor.PositionY}){(monitor.IsPrimary ? " [PRIMARY]" : "")}");
         }
 
         Console.WriteLine();
@@ -186,13 +214,20 @@ class Program
         Console.WriteLine();
         foreach (var monitor in monitors)
         {
-            Console.WriteLine($"Device:     {monitor.DeviceName}");
-            Console.WriteLine($"Name:       {monitor.DeviceString}");
-            Console.WriteLine($"Resolution: {monitor.Width}x{monitor.Height}");
-            Console.WriteLine($"Position:   ({monitor.PositionX}, {monitor.PositionY})");
-            Console.WriteLine($"Frequency:  {monitor.Frequency}Hz");
-            Console.WriteLine($"Bits/Pixel: {monitor.BitsPerPixel}");
-            Console.WriteLine($"Primary:    {(monitor.IsPrimary ? "Yes" : "No")}");
+            Console.WriteLine($"Device:       {monitor.DeviceName}");
+            Console.WriteLine($"Adapter:      {monitor.DeviceString}");
+            Console.WriteLine($"Monitor:      {(string.IsNullOrEmpty(monitor.MonitorFriendlyName) ? "(EDID unavailable)" : monitor.MonitorFriendlyName)}");
+            if (!string.IsNullOrEmpty(monitor.MonitorDevicePath))
+            {
+                var mfg = DisplayConfig.DecodeManufacturerId(monitor.ManufacturerId);
+                Console.WriteLine($"EDID:         {mfg} product 0x{monitor.ProductCodeId:X4}");
+                Console.WriteLine($"Device Path:  {monitor.MonitorDevicePath}");
+            }
+            Console.WriteLine($"Resolution:   {monitor.Width}x{monitor.Height}");
+            Console.WriteLine($"Position:     ({monitor.PositionX}, {monitor.PositionY})");
+            Console.WriteLine($"Frequency:    {monitor.Frequency}Hz");
+            Console.WriteLine($"Bits/Pixel:   {monitor.BitsPerPixel}");
+            Console.WriteLine($"Primary:      {(monitor.IsPrimary ? "Yes" : "No")}");
             Console.WriteLine();
         }
     }

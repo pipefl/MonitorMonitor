@@ -50,13 +50,19 @@ internal sealed class CurrentSetupDialog : Form
         var sb = new StringBuilder();
         foreach (var m in monitors)
         {
-            sb.AppendLine($"Device:     {m.DeviceName}");
-            sb.AppendLine($"Name:       {m.DeviceString}");
-            sb.AppendLine($"Resolution: {m.Width}x{m.Height}");
-            sb.AppendLine($"Position:   ({m.PositionX}, {m.PositionY})");
-            sb.AppendLine($"Frequency:  {m.Frequency}Hz");
-            sb.AppendLine($"Bits/Pixel: {m.BitsPerPixel}");
-            sb.AppendLine($"Primary:    {(m.IsPrimary ? "Yes" : "No")}");
+            sb.AppendLine($"Device:       {m.DeviceName}");
+            sb.AppendLine($"Adapter:      {m.DeviceString}");
+            sb.AppendLine($"Monitor:      {(string.IsNullOrEmpty(m.MonitorFriendlyName) ? "(EDID unavailable)" : m.MonitorFriendlyName)}");
+            if (!string.IsNullOrEmpty(m.MonitorDevicePath))
+            {
+                var mfg = DisplayConfig.DecodeManufacturerId(m.ManufacturerId);
+                sb.AppendLine($"EDID:         {mfg} product 0x{m.ProductCodeId:X4}");
+            }
+            sb.AppendLine($"Resolution:   {m.Width}x{m.Height}");
+            sb.AppendLine($"Position:     ({m.PositionX}, {m.PositionY})");
+            sb.AppendLine($"Frequency:    {m.Frequency}Hz");
+            sb.AppendLine($"Bits/Pixel:   {m.BitsPerPixel}");
+            sb.AppendLine($"Primary:      {(m.IsPrimary ? "Yes" : "No")}");
             sb.AppendLine();
         }
         return sb.ToString();

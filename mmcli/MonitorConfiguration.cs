@@ -92,16 +92,23 @@ public class MonitorConfiguration
     public const int DISP_CHANGE_SUCCESSFUL = 0;
     public const int DISP_CHANGE_RESTART = 1;
     public const int DISP_CHANGE_FAILED = -1;
-    
-    // DEVMODE field flags
+
     public const int DM_PELSWIDTH = 0x80000;
     public const int DM_PELSHEIGHT = 0x100000;
     public const int DM_POSITION = 0x20;
 
     public class MonitorInfo
     {
+        // Identity (EDID-derived; primary key for matching across reboots/replugs)
+        public string MonitorDevicePath { get; set; } = string.Empty;
+        public string MonitorFriendlyName { get; set; } = string.Empty;
+        public ushort ManufacturerId { get; set; }
+        public ushort ProductCodeId { get; set; }
+
+        // Ephemeral: current GDI assignment. Not used for identity, only display/diagnostics.
         public string DeviceName { get; set; } = string.Empty;
         public string DeviceString { get; set; } = string.Empty;
+
         public bool IsAttached { get; set; }
         public bool IsPrimary { get; set; }
         public int PositionX { get; set; }
@@ -115,17 +122,18 @@ public class MonitorConfiguration
 
     public static List<MonitorInfo> GetCurrentConfiguration()
     {
+        var identities = DisplayConfig.GetActiveIdentities();
         var monitors = new List<MonitorInfo>();
         DISPLAY_DEVICE d = new DISPLAY_DEVICE();
         d.cb = Marshal.SizeOf(d);
-        
+
         for (uint id = 0; EnumDisplayDevices(null, id, ref d, 0); id++)
         {
             if ((d.StateFlags & DisplayDeviceStateFlags.AttachedToDesktop) != 0)
             {
                 DEVMODE dm = new DEVMODE();
                 dm.dmSize = (short)Marshal.SizeOf<DEVMODE>();
-                
+
                 if (EnumDisplaySettings(d.DeviceName, ENUM_CURRENT_SETTINGS, ref dm))
                 {
                     var monitor = new MonitorInfo
@@ -142,89 +150,144 @@ public class MonitorConfiguration
                         BitsPerPixel = dm.dmBitsPerPel,
                         Orientation = dm.dmDisplayOrientation
                     };
+
+                    if (identities.TryGetValue(d.DeviceName, out var ident))
+                    {
+                        monitor.MonitorDevicePath = ident.MonitorDevicePath;
+                        monitor.MonitorFriendlyName = ident.MonitorFriendlyName;
+                        monitor.ManufacturerId = ident.ManufacturerId;
+                        monitor.ProductCodeId = ident.ProductCodeId;
+                    }
+
                     monitors.Add(monitor);
                 }
             }
-            
+
             d.cb = Marshal.SizeOf(d);
         }
-        
+
         return monitors;
+    }
+
+    /// <summary>
+    /// Returns the list of monitors that cannot be safely saved (no stable EDID identity).
+    /// Empty list means the configuration is OK to persist.
+    /// </summary>
+    public static List<MonitorInfo> ValidateForSave(List<MonitorInfo> monitors)
+    {
+        return monitors.Where(m => string.IsNullOrEmpty(m.MonitorDevicePath)).ToList();
+    }
+
+    public static string DescribeForUser(MonitorInfo m)
+    {
+        if (!string.IsNullOrEmpty(m.MonitorFriendlyName))
+            return $"{m.MonitorFriendlyName} ({m.DeviceName})";
+        if (!string.IsNullOrEmpty(m.DeviceString))
+            return $"{m.DeviceString} ({m.DeviceName})";
+        return m.DeviceName;
     }
 
     public static bool ApplyConfiguration(List<MonitorInfo> monitors)
     {
-        bool success = true;
-        
-        // Get all currently attached displays
-        DISPLAY_DEVICE d = new DISPLAY_DEVICE();
-        d.cb = Marshal.SizeOf(d);
-        List<string> attachedDevices = new List<string>();
-        
-        for (uint id = 0; EnumDisplayDevices(null, id, ref d, 0); id++)
+        // Refuse legacy profiles (no identity recorded) — they can't be matched reliably.
+        var legacy = monitors.Where(m => string.IsNullOrEmpty(m.MonitorDevicePath)).ToList();
+        if (legacy.Count > 0)
         {
-            if ((d.StateFlags & DisplayDeviceStateFlags.AttachedToDesktop) != 0)
-            {
-                attachedDevices.Add(d.DeviceName);
-            }
-            d.cb = Marshal.SizeOf(d);
+            Console.WriteLine("Error: Profile is missing monitor identity information (saved before EDID tracking).");
+            Console.WriteLine("       Please re-save the profile with the current version.");
+            return false;
         }
 
-        // First, disable monitors not in the profile
-        foreach (var deviceName in attachedDevices)
-        {
-            bool inProfile = monitors.Any(m => m.DeviceName == deviceName && m.IsAttached);
-            
-            if (!inProfile)
-            {
-                Console.WriteLine($"Disabling {deviceName}...");
-                
-                // Create DEVMODE with zero resolution to detach the display
-                DEVMODE dmDisable = new DEVMODE();
-                dmDisable.dmSize = (short)Marshal.SizeOf<DEVMODE>();
-                dmDisable.dmPelsWidth = 0;
-                dmDisable.dmPelsHeight = 0;
-                dmDisable.dmPositionX = 0;
-                dmDisable.dmPositionY = 0;
-                dmDisable.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
-                
-                int result = ChangeDisplaySettingsEx(deviceName, ref dmDisable, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero);
-                
-                if (result != DISP_CHANGE_SUCCESSFUL)
-                {
-                    Console.WriteLine($"Warning: Failed to disable {deviceName} (Error code: {result})");
-                }
-            }
-        }
-        
-        // Then, configure monitors that should be enabled
+        bool success = true;
+
+        // Build a map of currently attached monitors keyed by identity.
+        var current = GetCurrentConfiguration();
+        var byIdentity = current
+            .Where(m => !string.IsNullOrEmpty(m.MonitorDevicePath))
+            .ToDictionary(m => m.MonitorDevicePath, StringComparer.OrdinalIgnoreCase);
+
+        var profileIdentities = new HashSet<string>(
+            monitors.Where(m => m.IsAttached).Select(m => m.MonitorDevicePath),
+            StringComparer.OrdinalIgnoreCase);
+
+        // STEP 1: Configure each monitor from the profile, addressing it by its CURRENT GDI name.
+        // If a profile monitor's EDID identity isn't currently attached, fall back to enabling
+        // an inactive GDI device that supports the requested mode (mirrors the original behavior).
+        var usedInactiveDevices = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var monitor in monitors)
         {
-            if (monitor.IsAttached)
-            {
-                DEVMODE dm = new DEVMODE();
-                dm.dmSize = (short)Marshal.SizeOf<DEVMODE>();
-                dm.dmDeviceName = monitor.DeviceName;
-                dm.dmPelsWidth = monitor.Width;
-                dm.dmPelsHeight = monitor.Height;
-                dm.dmBitsPerPel = monitor.BitsPerPixel;
-                dm.dmDisplayFrequency = monitor.Frequency;
-                dm.dmPositionX = monitor.PositionX;
-                dm.dmPositionY = monitor.PositionY;
-                dm.dmDisplayOrientation = monitor.Orientation;
-                dm.dmFields = 0x1C0000 | 0x20 | 0x80000 | 0x100000 | 0x40000; // Position, PelsWidth, PelsHeight, BitsPerPel, DisplayFrequency
+            if (!monitor.IsAttached) continue;
 
-                int result = ChangeDisplaySettingsEx(monitor.DeviceName, ref dm, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero);
-                
-                if (result != DISP_CHANGE_SUCCESSFUL)
+            string targetDeviceName;
+            string targetLabel;
+
+            if (byIdentity.TryGetValue(monitor.MonitorDevicePath, out var live))
+            {
+                targetDeviceName = live.DeviceName;
+                targetLabel = DescribeForUser(live);
+            }
+            else
+            {
+                var fallback = FindInactiveDeviceForMode(monitor.Width, monitor.Height, monitor.Frequency, usedInactiveDevices);
+                if (fallback == null)
                 {
-                    Console.WriteLine($"Warning: Failed to prepare settings for {monitor.DeviceName} (Error code: {result})");
+                    Console.WriteLine($"Warning: Monitor not currently attached and no compatible inactive display found: {monitor.MonitorFriendlyName} [{monitor.MonitorDevicePath}]");
                     success = false;
+                    continue;
                 }
+                targetDeviceName = fallback;
+                usedInactiveDevices.Add(fallback);
+                targetLabel = $"{monitor.MonitorFriendlyName} (enabling on {fallback})";
+            }
+
+            Console.WriteLine($"Configuring {targetLabel} -> {monitor.Width}x{monitor.Height}@{monitor.Frequency}Hz");
+
+            DEVMODE dm = new DEVMODE();
+            dm.dmSize = (short)Marshal.SizeOf<DEVMODE>();
+            dm.dmDeviceName = targetDeviceName;
+            dm.dmPelsWidth = monitor.Width;
+            dm.dmPelsHeight = monitor.Height;
+            dm.dmBitsPerPel = monitor.BitsPerPixel;
+            dm.dmDisplayFrequency = monitor.Frequency;
+            dm.dmPositionX = monitor.PositionX;
+            dm.dmPositionY = monitor.PositionY;
+            dm.dmDisplayOrientation = monitor.Orientation;
+            dm.dmFields = 0x1C0000 | 0x20 | 0x80000 | 0x100000 | 0x40000;
+
+            int result = ChangeDisplaySettingsEx(targetDeviceName, ref dm, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero);
+            if (result != DISP_CHANGE_SUCCESSFUL)
+            {
+                Console.WriteLine($"Warning: Failed to configure {targetDeviceName} (Error code: {result})");
+                success = false;
             }
         }
 
-        // Apply all changes at once
+        // STEP 2: Disable any currently-attached monitor whose identity isn't in the profile.
+        foreach (var live in current)
+        {
+            if (string.IsNullOrEmpty(live.MonitorDevicePath)) continue;
+            if (profileIdentities.Contains(live.MonitorDevicePath)) continue;
+
+            Console.WriteLine($"Disabling {DescribeForUser(live)}...");
+
+            DEVMODE dmDisable = new DEVMODE();
+            dmDisable.dmSize = (short)Marshal.SizeOf<DEVMODE>();
+            dmDisable.dmPelsWidth = 0;
+            dmDisable.dmPelsHeight = 0;
+            dmDisable.dmPositionX = 0;
+            dmDisable.dmPositionY = 0;
+            dmDisable.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
+
+            int result = ChangeDisplaySettingsEx(live.DeviceName, ref dmDisable, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero);
+            if (result != DISP_CHANGE_SUCCESSFUL)
+            {
+                Console.WriteLine($"Warning: Failed to disable {live.DeviceName} (Error code: {result})");
+                success = false;
+            }
+        }
+
+        // Commit
         int finalResult = ChangeDisplaySettingsEx(null, IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero);
         if (finalResult != DISP_CHANGE_SUCCESSFUL)
         {
@@ -233,5 +296,34 @@ public class MonitorConfiguration
         }
 
         return success;
+    }
+
+    private static string? FindInactiveDeviceForMode(int width, int height, int frequency, HashSet<string> exclude)
+    {
+        DISPLAY_DEVICE d = new DISPLAY_DEVICE();
+        d.cb = Marshal.SizeOf(d);
+
+        for (uint id = 0; EnumDisplayDevices(null, id, ref d, 0); id++)
+        {
+            if ((d.StateFlags & DisplayDeviceStateFlags.AttachedToDesktop) == 0
+                && !exclude.Contains(d.DeviceName))
+            {
+                DEVMODE testDm = new DEVMODE();
+                testDm.dmSize = (short)Marshal.SizeOf<DEVMODE>();
+
+                for (int modeNum = 0; EnumDisplaySettings(d.DeviceName, modeNum, ref testDm); modeNum++)
+                {
+                    if (testDm.dmPelsWidth == width
+                        && testDm.dmPelsHeight == height
+                        && testDm.dmDisplayFrequency == frequency)
+                    {
+                        return d.DeviceName;
+                    }
+                }
+            }
+            d.cb = Marshal.SizeOf(d);
+        }
+
+        return null;
     }
 }

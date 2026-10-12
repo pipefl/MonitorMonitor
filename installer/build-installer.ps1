@@ -22,12 +22,29 @@ $distDir      = Join-Path $installerDir 'dist'
 
 $mmcliProj = Join-Path $repoRoot 'mmcli\mmcli.csproj'
 $mmtrayProj = Join-Path $repoRoot 'mmtray\mmtray.csproj'
+$trayManifest = Join-Path $repoRoot 'mmtray\app.manifest'
 
-# --- Version: single datestamp used everywhere user-visible ----------------
-$now            = Get-Date
-$displayVersion = $now.ToString('yyyyMMdd-HHmmss')
-$numericVersion = '{0}.{1}{2:D2}.{3:D2}{4:D2}.{5:D2}' -f $now.Year, $now.Month, $now.Day, $now.Hour, $now.Minute, $now.Second
-Write-Host "==> Build version: $displayVersion  (numeric: $numericVersion)" -ForegroundColor Cyan
+# --- Datestamp version -----------------------------------------------------
+# Display form (installer filename, Inno AppVersion, ProductVersion):
+#   yyyyMMdd-HHmmss  e.g. 20260519-075434
+# AssemblyVersion / FileVersion / app.manifest must be numeric quad with each
+# part <= 65535, so we encode the same timestamp as yyyy.MMdd.HHmm.ss.
+$now         = Get-Date
+$version     = $now.ToString('yyyyMMdd-HHmmss')
+$versionQuad = '{0}.{1}{2:D2}.{3:D2}{4:D2}.{5:D2}' -f `
+    $now.Year, $now.Month, $now.Day, $now.Hour, $now.Minute, $now.Second
+Write-Host "==> Build version: $version (quad $versionQuad)" -ForegroundColor Cyan
+
+# Patch the tray app.manifest in-place so the embedded assemblyIdentity matches.
+$manifestXml = Get-Content $trayManifest -Raw
+$patched     = [regex]::Replace(
+    $manifestXml,
+    '(<assemblyIdentity\s+version=")[^"]+(")',
+    "`${1}$versionQuad`${2}"
+)
+if ($patched -ne $manifestXml) {
+    Set-Content -Path $trayManifest -Value $patched -Encoding UTF8 -NoNewline
+}
 
 # --- MSVC environment for AOT linking ---------------------------------------
 $vc     = 'C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.50.35717'
@@ -53,19 +70,12 @@ if ($running) {
 }
 
 # --- Publish both binaries --------------------------------------------------
-$versionArgs = @(
-    "-p:AssemblyVersion=$numericVersion",
-    "-p:FileVersion=$numericVersion",
-    "-p:InformationalVersion=$displayVersion",
-    '-p:IlcUseEnvironmentalTools=true'
-)
-
 Write-Host '==> Publishing mmcli (Native AOT)' -ForegroundColor Cyan
-dotnet publish $mmcliProj -c $Configuration @versionArgs
+dotnet publish $mmcliProj -c $Configuration -p:IlcUseEnvironmentalTools=true -p:Version=$versionQuad -p:AssemblyVersion=$versionQuad -p:FileVersion=$versionQuad -p:InformationalVersion=$version
 if ($LASTEXITCODE -ne 0) { throw 'mmcli publish failed' }
 
 Write-Host '==> Publishing mmtray (Native AOT)' -ForegroundColor Cyan
-dotnet publish $mmtrayProj -c $Configuration @versionArgs
+dotnet publish $mmtrayProj -c $Configuration -p:IlcUseEnvironmentalTools=true -p:Version=$versionQuad -p:AssemblyVersion=$versionQuad -p:FileVersion=$versionQuad -p:InformationalVersion=$version
 if ($LASTEXITCODE -ne 0) { throw 'mmtray publish failed' }
 
 # --- Stage ------------------------------------------------------------------
@@ -94,7 +104,7 @@ if (-not $iscc) { throw 'ISCC.exe not found. Install Inno Setup 6 first (winget 
 
 # --- Compile installer ------------------------------------------------------
 Write-Host '==> Compiling installer with ISCC' -ForegroundColor Cyan
-& $iscc /Q "/DMyAppVersion=$displayVersion" "/DMyAppVersionNumeric=$numericVersion" (Join-Path $installerDir 'MonitorMonitor.iss')
+& $iscc /Q "/DMyAppVersion=$version" (Join-Path $installerDir 'MonitorMonitor.iss')
 if ($LASTEXITCODE -ne 0) { throw 'ISCC compile failed' }
 
 Write-Host ''

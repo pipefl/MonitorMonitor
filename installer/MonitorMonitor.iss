@@ -3,10 +3,7 @@
 
 #define MyAppName       "MonitorMonitor"
 #ifndef MyAppVersion
-  #define MyAppVersion  "dev"
-#endif
-#ifndef MyAppVersionNumeric
-  #define MyAppVersionNumeric "0.0.0.0"
+  #define MyAppVersion  "0.0.0"
 #endif
 #define MyAppPublisher  "MonitorMonitor"
 #define MyAppExeName    "mmtray.exe"
@@ -15,8 +12,6 @@
 AppId={{F18A8E2E-6297-477F-85C7-0D72BCB710F9}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-VersionInfoVersion={#MyAppVersionNumeric}
-VersionInfoProductVersion={#MyAppVersionNumeric}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}

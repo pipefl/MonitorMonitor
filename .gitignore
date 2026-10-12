@@ -26,3 +26,7 @@ mmcli/obj/project.nuget.cache
 /installer
 installer/build-installer.ps1
 installer/MonitorMonitor.iss
+
+
+Export-Icon.ps1
+Publish-Repo.ps1
